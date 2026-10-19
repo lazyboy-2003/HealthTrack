@@ -10,8 +10,15 @@ final q=['DISCIPLINE BUILDS THE BODY YOUR EXCUSES NEVER WILL.','GET UP. MOVE. HY
 void initState(){super.initState();load();}
 Future<void> load()async{final p=await SharedPreferences.getInstance(),s=p.getString('health');if(s!=null){final m=jsonDecode(s) as Map<String,dynamic>;for(final k in d.keys){d[k]=m[k]??0;}if(mounted)setState((){});}}
 Future<void> add(String k)async{final c=TextEditingController();final v=await showDialog<double>(context:context,builder:(x)=>AlertDialog(title:Text('Add '+k),content:TextField(controller:c,autofocus:true,keyboardType:const TextInputType.numberWithOptions(decimal:true)),actions:[TextButton(onPressed:()=>Navigator.pop(x),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(x,double.tryParse(c.text)),child:const Text('Save'))]));if(v!=null){d[k]=v;(await SharedPreferences.getInstance()).setString('health',jsonEncode(d));setState((){});}}
+Widget _goal(String label,double value,double goal){final p=(value/goal).clamp(0.0,1.0);return Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:const Color(0xff121619),borderRadius:BorderRadius.circular(16)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:10),LinearProgressIndicator(value:p,minHeight:8,borderRadius:BorderRadius.circular(8)),const SizedBox(height:7),Text('${value.toInt()} / ${goal.toInt()}',style:const TextStyle(color:Colors.greenAccent))]));}
 Widget build(BuildContext c)=>Scaffold(backgroundColor:const Color(0xff090b0d),appBar:AppBar(title:const Text('HEALTHTRACK',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:2))),body:ListView(padding:const EdgeInsets.all(16),children:[
 Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:Colors.greenAccent)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('TODAY\'S MINDSET',style:TextStyle(color:Colors.greenAccent,fontWeight:FontWeight.bold)),const SizedBox(height:10),Text(q[DateTime.now().day%q.length],style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900))])),
+const SizedBox(height:16),
+Row(children:[
+Expanded(child:_goal('STEPS',d['Steps']!.toDouble(),10000)),
+const SizedBox(width:10),
+Expanded(child:_goal('WATER',d['Water ml']!.toDouble(),2200)),
+]),
 const SizedBox(height:16),GridView.count(crossAxisCount:2,shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),children:d.keys.map((k)=>Card(child:InkWell(onTap:()=>add(k),child:Padding(padding:const EdgeInsets.all(16),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(k,style:const TextStyle(fontWeight:FontWeight.bold)),const SizedBox(height:10),Text(d[k]==0?'ADD':d[k].toString(),style:const TextStyle(fontSize:22,color:Colors.greenAccent))]))))).toList()),
 const Text('Records are stored locally. HealthTrack is not a medical diagnosis tool.',textAlign:TextAlign.center,style:TextStyle(color:Colors.grey))
 ]));}
