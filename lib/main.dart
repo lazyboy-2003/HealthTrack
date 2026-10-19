@@ -2,17 +2,38 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:camera/camera.dart';
+import 'package:pedometer/pedometer.dart';
+import 'dart:async';
 void main()=>runApp(const App());
 class App extends StatelessWidget{const App({super.key});Widget build(BuildContext c)=>MaterialApp(debugShowCheckedModeBanner:false,theme:ThemeData(brightness:Brightness.dark,colorSchemeSeed:Colors.greenAccent,useMaterial3:true),home:const Home());}
 class Home extends StatefulWidget{const Home({super.key});State<Home> createState()=>_Home();}
 class _Home extends State<Home>{
+StreamSubscription<StepCount>? _stepSub; int? _stepBase; String stepStatus='Starting sensor…';
 Map<String,num> d={'BP SYS':0,'BP DIA':0,'Pulse':0,'Steps':0,'Water ml':0,'Stress /10':0,'Weight kg':0,'Sleep h':0};
 List<Map<String,dynamic>> history=[];
 final q=['DISCIPLINE BUILDS THE BODY YOUR EXCUSES NEVER WILL.','GET UP. MOVE. HYDRATE. REPEAT.','NO ZERO DAYS. DO SOMETHING FOR YOUR BODY TODAY.'];
-void initState(){super.initState();load();}
+void initState(){super.initState();load();startSteps();}
 Future<void> load()async{final p=await SharedPreferences.getInstance(),s=p.getString('health');if(s!=null){final m=jsonDecode(s) as Map<String,dynamic>;for(final k in d.keys){d[k]=m[k]??0;}}final h=p.getString('history');if(h!=null){history=List<Map<String,dynamic>>.from(jsonDecode(h));}if(mounted)setState((){});}
 Future<void> add(String k)async{final c=TextEditingController();final v=await showDialog<double>(context:context,builder:(x)=>AlertDialog(title:Text('Add '+k),content:TextField(controller:c,autofocus:true,keyboardType:const TextInputType.numberWithOptions(decimal:true)),actions:[TextButton(onPressed:()=>Navigator.pop(x),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(x,double.tryParse(c.text)),child:const Text('Save'))]));if(v!=null){d[k]=v;history.insert(0,{'type':k,'value':v,'time':DateTime.now().toIso8601String()});if(history.length>100)history=history.take(100).toList();final p=await SharedPreferences.getInstance();await p.setString('health',jsonEncode(d));await p.setString('history',jsonEncode(history));setState((){});}}
 Widget _goal(String label,double value,double goal){final p=(value/goal).clamp(0.0,1.0);return Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:const Color(0xff121619),borderRadius:BorderRadius.circular(16)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:10),LinearProgressIndicator(value:p,minHeight:8,borderRadius:BorderRadius.circular(8)),const SizedBox(height:7),Text('${value.toInt()} / ${goal.toInt()}',style:const TextStyle(color:Colors.greenAccent))]));}
+
+Future<void> startSteps() async {
+  final p=await SharedPreferences.getInstance();
+  final today=DateTime.now().toIso8601String().substring(0,10);
+  final savedDay=p.getString('step_day');
+  if(savedDay!=today){await p.setString('step_day',today);await p.remove('step_base');_stepBase=null;}
+  _stepBase=p.getInt('step_base');
+  _stepSub=Pedometer.stepCountStream.listen((event) async {
+    _stepBase ??= event.steps;
+    await p.setInt('step_base',_stepBase!);
+    final todaySteps=(event.steps-_stepBase!).clamp(0,1000000);
+    d['Steps']=todaySteps;
+    await p.setString('health',jsonEncode(d));
+    if(mounted)setState(()=>stepStatus='LIVE');
+  },onError:(e){if(mounted)setState(()=>stepStatus='Sensor permission required');});
+}
+@override void dispose(){_stepSub?.cancel();super.dispose();}
+
 Future<void> cameraPulse() async {
   try {
     final cams=await availableCameras();
@@ -26,7 +47,7 @@ Widget build(BuildContext c)=>Scaffold(backgroundColor:const Color(0xff090b0d),a
 Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:Colors.greenAccent)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('TODAY\'S MINDSET',style:TextStyle(color:Colors.greenAccent,fontWeight:FontWeight.bold)),const SizedBox(height:10),Text(q[DateTime.now().day%q.length],style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900))])),
 const SizedBox(height:16),
 Row(children:[
-Expanded(child:_goal('STEPS',d['Steps']!.toDouble(),10000)),
+Expanded(child:Column(children:[_goal('STEPS',d['Steps']!.toDouble(),10000),const SizedBox(height:4),Text(stepStatus,style:const TextStyle(fontSize:10,color:Colors.grey))])),
 const SizedBox(width:10),
 Expanded(child:_goal('WATER',d['Water ml']!.toDouble(),2200)),
 ]),
